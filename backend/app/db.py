@@ -3,7 +3,10 @@ DAOs are the only modules that run queries against these tables."""
 import sqlite3
 from pathlib import Path
 
-from .config import get_settings
+from fastapi import Depends
+
+from .auth import current_user
+from .config import Settings, get_settings
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS funds (
@@ -115,12 +118,22 @@ def init_db(db_path: Path | None = None) -> None:
         conn.close()
 
 
-def get_db():
-    """FastAPI dependency: one connection per request = one transaction.
-    Commit on success, rollback on any error. This is the unit-of-work
-    boundary, so DAOs run statements and services hold logic — neither
-    needs to commit."""
-    conn = connect()
+def profile_db_path(settings: Settings, user_id: int) -> Path:
+    return settings.data_dir / "profiles" / f"{user_id}.db"
+
+
+def get_db(user=Depends(current_user), settings: Settings = Depends(get_settings)):
+    """FastAPI dependency: one connection per request = one transaction, scoped
+    to the logged-in profile's own SQLite file. Commit on success, rollback on
+    any error. DAOs run statements and services hold logic — neither commits.
+
+    This is the single seam that isolates every profile's data: the connection
+    always points at the current user's file, so no route can reach another
+    profile's data."""
+    path = profile_db_path(settings, user.id)
+    if not path.exists():
+        init_db(path)
+    conn = connect(path)
     try:
         yield conn
         conn.commit()

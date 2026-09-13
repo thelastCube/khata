@@ -4,6 +4,8 @@ import sqlite3
 
 from fastapi import Depends
 
+from .auth_db import get_auth_db
+from .config import Settings, get_settings
 from .dao.audit_dao import AuditDao
 from .dao.budgets_dao import BudgetsDao
 from .dao.expenses_dao import ExpensesDao
@@ -19,6 +21,8 @@ from .services.expense_service import ExpenseService
 from .services.fund_service import FundService
 from .services.label_service import LabelService
 from .services.transfer_service import TransferService
+from .services.user_service import UserService
+from .dao.users_dao import UsersDao
 
 
 def fund_service(conn: sqlite3.Connection = Depends(get_db)) -> FundService:
@@ -55,3 +59,8 @@ def audit_service(conn: sqlite3.Connection = Depends(get_db)) -> AuditService:
 
 def backup_service(conn: sqlite3.Connection = Depends(get_db)) -> BackupService:
     return BackupService(conn)
+
+
+def user_service(auth_conn: sqlite3.Connection = Depends(get_auth_db),
+                 settings: Settings = Depends(get_settings)) -> UserService:
+    return UserService(UsersDao(auth_conn), settings)

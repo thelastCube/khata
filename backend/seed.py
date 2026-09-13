@@ -7,6 +7,7 @@ Run from backend/ with the venv active:
 Populates the current month (some funds over budget, some under) and the
 previous month, then closes the previous month so carryover shows up.
 """
+import shutil
 from datetime import date
 
 from app.config import get_settings
@@ -17,7 +18,10 @@ from app.dao.expenses_dao import ExpensesDao
 from app.dao.funds_dao import FundsDao
 from app.dao.labels_dao import LabelsDao
 from app.dao.transfers_dao import TransfersDao
-from app.db import connect, init_db
+from app.auth_db import auth_db_path, connect_auth, init_auth_db
+from app.dao.users_dao import UsersDao
+from app.db import connect, init_db, profile_db_path
+from app.services.user_service import seed_default_admin
 from app.services.budget_service import BudgetService
 from app.services.expense_service import ExpenseService
 from app.services.fund_service import FundService
@@ -35,14 +39,27 @@ def main():
     py, pm = (today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12)
     prev = month_str(py, pm)
 
-    db = get_settings().db_path
-    for suffix in ("", "-wal", "-shm"):
-        p = db.parent / (db.name + suffix)
-        if p.exists():
-            p.unlink()
-    init_db()
+    settings = get_settings()
+    # wipe the auth DB, legacy file, and every profile's data
+    profiles_dir = settings.data_dir / "profiles"
+    if profiles_dir.exists():
+        shutil.rmtree(profiles_dir)
+    for base in (auth_db_path(settings), settings.db_path):
+        for suffix in ("", "-wal", "-shm"):
+            p = base.parent / (base.name + suffix)
+            if p.exists():
+                p.unlink()
 
-    conn = connect()
+    # create the default admin profile, then write demo data into its DB
+    init_auth_db(settings)
+    seed_default_admin(settings)
+    ac = connect_auth(settings)
+    chai = UsersDao(ac).get_by_name("Chai")
+    ac.close()
+    data_path = profile_db_path(settings, chai.id)
+    init_db(data_path)
+
+    conn = connect(data_path)
     funds_dao, expenses_dao, labels_dao = FundsDao(conn), ExpensesDao(conn), LabelsDao(conn)
     budgets_dao, transfers_dao, audit = BudgetsDao(conn), TransfersDao(conn), AuditDao(conn)
     label_svc = LabelService(labels_dao, audit)
@@ -113,8 +130,9 @@ def main():
 
     conn.commit()
     conn.close()
-    print(f"seeded: {len(funds)} funds, months {prev} and {cur} (current month = {cur}).")
-    print(f"db: {db}")
+    print(f"seeded profile 'Chai' (id={chai.id}): {len(funds)} funds, months {prev} and {cur} (current = {cur}).")
+    print(f"auth db: {auth_db_path(settings)}")
+    print(f"data db: {data_path}")
 
 
 if __name__ == "__main__":

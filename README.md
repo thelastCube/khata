@@ -4,6 +4,7 @@ Khata (खाता) is a budget + expense tracker I (claude) made for myself. T
 
 ## what does it the do
 
+- ✨ **P R O F I L E S** ✨ for your frens
 - you can create ✨ **F U N D S** ✨ - buckets for your monthly budget. Think rent fund, hobby fund, food fund, tax fund 😭
   - You can set a default amount for every month, and also one off overrides for that month
   - If you have money left in your monthly fund or exceed it, you can carry it over to next month. If you want to adjust excess expense over multiple months not just next one, you can pay yourself in EMIs (or you can just forget about it like me). These are opt out by default, so every month starts with (an illusion of) a clean slate
@@ -15,7 +16,7 @@ Khata (खाता) is a budget + expense tracker I (claude) made for myself. T
 
 ## Stack
 
-- **Backend** — Python, FastAPI, SQLite. Single-user (that's me) cookie auth.
+- **Backend** — Python, FastAPI, SQLite. Multi-profile cookie auth (hashed passwords, one data file per profile + a central auth db).
 - **Frontend** — React + Vite
 
 ## Project structure

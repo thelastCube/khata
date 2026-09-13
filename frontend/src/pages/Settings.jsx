@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { money, useMonth } from '../components.jsx'
+import { Avatar, AvatarCropper, money, useMonth } from '../components.jsx'
+
+const SWATCH = { bee: '#c1902f', ladybug: '#c04a3d', shark: '#3f6f9f', caterpillar: '#4f8a5b' }
 
 export default function Settings() {
-  const { month, fonts, setFont, FONTS } = useMonth()
+  const { month, fonts, setFont, FONTS, profile, refreshProfile, accent, setAccent, ACCENTS } = useMonth()
   const [funds, setFunds] = useState([])
   const [labels, setLabels] = useState([])
   const [groups, setGroups] = useState([])
@@ -24,6 +26,17 @@ export default function Settings() {
 
       <div className="card">
         <h2>appearance</h2>
+        <div className="field">
+          <span className="muted small" style={{ display: 'block', marginBottom: 8 }}>theme</span>
+          <div className="swatches">
+            {ACCENTS.map((a) => (
+              <button key={a} type="button" className={`swatch ${accent === a ? 'on' : ''}`} onClick={() => setAccent(a)}>
+                <span className="dot" data-accent={a} style={{ background: SWATCH[a] }} />
+                {a}
+              </button>
+            ))}
+          </div>
+        </div>
         {fontKinds.map(([kind, label]) => (
           <label className="field" key={kind}><span>{label} font</span>
             <select value={fonts[kind]} onChange={(e) => setFont(kind, e.target.value)}>
@@ -32,6 +45,9 @@ export default function Settings() {
           </label>
         ))}
       </div>
+
+      <AccountSection profile={profile} refreshProfile={refreshProfile} setError={setError} />
+      {profile?.is_admin && <ProfilesSection profile={profile} setError={setError} />}
 
       <FundsSection funds={funds} month={month} reload={reload} setError={setError} />
       <LabelsSection labels={labels} reload={reload} setError={setError} />
@@ -43,6 +59,11 @@ export default function Settings() {
         <button className="btn ghost" onClick={async () => {
           try { const r = await api.backup(); alert(`Exported to ${r.dir}`) } catch (e) { setError(e.message) }
         }}>export CSV</button>
+      </div>
+
+      <div className="card">
+        <button className="btn ghost" style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => api.logout().then(() => location.reload())}>log out</button>
       </div>
     </>
   )
@@ -211,6 +232,142 @@ function LabelsSection({ labels, reload, setError }) {
         <input type="text" placeholder="new label" value={name}
                onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
         <button className="btn" onClick={add}>add</button>
+      </div>
+    </div>
+  )
+}
+
+function AccountSection({ profile, refreshProfile, setError }) {
+  const [cur, setCur] = useState('')
+  const [nw, setNw] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [ok, setOk] = useState('')
+  const [cropFile, setCropFile] = useState(null)
+
+  async function changePw() {
+    if (nw !== confirm) { setError('new passwords do not match'); return }
+    try {
+      await api.changePassword(cur, nw)
+      setOk('password changed'); setTimeout(() => setOk(''), 2000)
+      setCur(''); setNw(''); setConfirm('')
+      refreshProfile()
+    } catch (e) { setError(e.message) }
+  }
+  async function setEmoji() {
+    const v = prompt('Enter an emoji for your avatar')
+    if (v) { try { await api.setAvatar(v.trim()); refreshProfile() } catch (e) { setError(e.message) } }
+  }
+  function uploadPhoto(e) {
+    const f = e.target.files?.[0]
+    if (f) setCropFile(f)
+    e.target.value = ''
+  }
+
+  return (
+    <div className="card">
+      {cropFile && (
+        <AvatarCropper file={cropFile} onCancel={() => setCropFile(null)}
+          onDone={async (url) => {
+            try { await api.setAvatar(url); refreshProfile() } catch (err) { setError(err.message) }
+            setCropFile(null)
+          }} />
+      )}
+      <h2>account</h2>
+      {profile?.must_change_password && (
+        <div className="banner">You're on a starter password — set your own below.</div>
+      )}
+      <div className="row" style={{ gap: 14, marginBottom: 14 }}>
+        <Avatar value={profile?.avatar} size={56} />
+        <div>
+          <div><b>{profile?.name}</b>{profile?.is_admin && <span className="muted small"> · admin</span>}</div>
+          <div className="row" style={{ gap: 8, marginTop: 8 }}>
+            <button className="btn ghost small" onClick={setEmoji}>set emoji</button>
+            <label className="btn ghost small">upload photo
+              <input type="file" accept="image/*" hidden onChange={uploadPhoto} /></label>
+          </div>
+        </div>
+      </div>
+      <div className="stack">
+        <div className="muted small">change password</div>
+        <input type="password" placeholder="current password" value={cur} onChange={(e) => setCur(e.target.value)} />
+        <input type="password" placeholder="new password" value={nw} onChange={(e) => setNw(e.target.value)} />
+        <input type="password" placeholder="confirm new password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+        <div className="row" style={{ gap: 8 }}>
+          <button className="btn small" onClick={changePw} disabled={!cur || !nw}>update password</button>
+          {ok && <span className="ok">{ok}</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProfilesSection({ profile, setError }) {
+  const blank = { name: '', password: '', avatar: '', is_admin: false }
+  const [users, setUsers] = useState([])
+  const [nf, setNf] = useState(blank)
+  const [cropFile, setCropFile] = useState(null)
+
+  function reload() { api.listUsers().then(setUsers).catch((e) => setError(e.message)) }
+  useEffect(reload, [])
+
+  async function add() {
+    if (!nf.name.trim() || !nf.password) return
+    try {
+      await api.createUser({ name: nf.name.trim(), password: nf.password, avatar: nf.avatar || null, is_admin: nf.is_admin })
+      setNf(blank); reload()
+    } catch (e) { setError(e.message) }
+  }
+  async function reset(u) {
+    const p = prompt(`New password for ${u.name}`)
+    if (p) { try { await api.resetPassword(u.id, p); alert(`Password reset for ${u.name}`) } catch (e) { setError(e.message) } }
+  }
+  async function del(u) {
+    if (confirm(`Delete profile ${u.name} and ALL their data? This can't be undone.`)) {
+      try { await api.deleteUser(u.id); reload() } catch (e) { setError(e.message) }
+    }
+  }
+  function uploadPhoto(e) {
+    const f = e.target.files?.[0]
+    if (f) setCropFile(f)
+    e.target.value = ''
+  }
+
+  return (
+    <div className="card">
+      {cropFile && (
+        <AvatarCropper file={cropFile} onCancel={() => setCropFile(null)}
+          onDone={(url) => { setNf((prev) => ({ ...prev, avatar: url })); setCropFile(null) }} />
+      )}
+      <h2>profiles <span className="muted small">(admin — accounts only, not their data)</span></h2>
+      {users.map((u) => (
+        <div key={u.id} className="list-item row between">
+          <span className="row" style={{ gap: 10 }}>
+            <Avatar value={u.avatar} size={30} />
+            <span>{u.name}{u.is_admin && <span className="muted small"> · admin</span>}
+              {u.must_change_password && <span className="muted small"> · starter pw</span>}</span>
+          </span>
+          <span className="row" style={{ gap: 8 }}>
+            <button className="btn ghost small" onClick={() => reset(u)}>reset pw</button>
+            {u.id !== profile?.id && <button className="btn danger small" onClick={() => del(u)}>×</button>}
+          </span>
+        </div>
+      ))}
+      <div className="stack" style={{ marginTop: 14, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+        <div className="row" style={{ gap: 8 }}>
+          <Avatar value={nf.avatar} size={40} />
+          <input type="text" placeholder="name" value={nf.name} onChange={(e) => setNf({ ...nf, name: e.target.value })} />
+        </div>
+        <div className="row" style={{ gap: 8 }}>
+          <input type="text" placeholder="emoji (optional)" style={{ maxWidth: 150 }}
+                 value={nf.avatar.startsWith('data:') ? '' : nf.avatar}
+                 onChange={(e) => setNf({ ...nf, avatar: e.target.value })} />
+          <label className="btn ghost small">upload photo
+            <input type="file" accept="image/*" hidden onChange={uploadPhoto} /></label>
+        </div>
+        <input type="password" placeholder="initial password" value={nf.password} onChange={(e) => setNf({ ...nf, password: e.target.value })} />
+        <label className="toggle small"><input type="checkbox" checked={nf.is_admin}
+          onChange={(e) => setNf({ ...nf, is_admin: e.target.checked })} /><span>make admin</span></label>
+        <button className="btn" onClick={add} disabled={!nf.name.trim() || !nf.password}>add profile</button>
       </div>
     </div>
   )

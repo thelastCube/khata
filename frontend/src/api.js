@@ -19,9 +19,20 @@ export const api = {
   put: (p, b) => req('PUT', p, b),
   del: (p) => req('DELETE', p),
 
-  login: (password) => req('POST', '/auth/login', { password }),
+  profiles: () => req('GET', '/profiles'),
+  login: (userId, password) => req('POST', '/auth/login', { user_id: userId, password }),
   logout: () => req('POST', '/auth/logout'),
   whoami: () => req('GET', '/whoami'),
+
+  // self-service
+  changePassword: (current_password, new_password) => req('POST', '/me/password', { current_password, new_password }),
+  setAvatar: (avatar) => req('PUT', '/me/avatar', { avatar }),
+
+  // admin
+  listUsers: () => req('GET', '/users'),
+  createUser: (body) => req('POST', '/users', body),
+  resetPassword: (id, new_password) => req('POST', `/users/${id}/reset-password`, { new_password }),
+  deleteUser: (id) => req('DELETE', `/users/${id}`),
 
   funds: (includeInactive = false) => req('GET', `/funds?include_inactive=${includeInactive}`),
   labels: () => req('GET', '/labels'),

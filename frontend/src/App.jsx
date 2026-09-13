@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import { api } from './api'
-import { MonthContext, MonthPicker, thisMonth } from './components.jsx'
+import { Avatar, MonthContext, MonthPicker, thisMonth } from './components.jsx'
 import Login from './pages/Login.jsx'
 import Overview from './pages/Overview.jsx'
 import AddExpense from './pages/AddExpense.jsx'
@@ -17,6 +17,9 @@ export const FONTS = {
   Merriweather: "'Merriweather', Georgia, serif",
 }
 const VARS = { display: '--font-display', body: '--font-body', mono: '--font-mono' }
+
+export const ACCENTS = ['bee', 'ladybug', 'shark', 'caterpillar']
+function initialAccent() { return localStorage.getItem('accent') || 'bee' }
 
 function loadFonts() {
   return {
@@ -34,9 +37,13 @@ function initialTheme() {
 
 export default function App() {
   const [authed, setAuthed] = useState(null)
+  const [profile, setProfile] = useState(null)
   const [month, setMonth] = useState(() => localStorage.getItem('month') || thisMonth())
   const [fonts, setFonts] = useState(loadFonts)
   const [theme, setTheme] = useState(initialTheme)
+  const [accent, setAccent] = useState(initialAccent)
+
+  const refreshProfile = () => api.whoami().then(setProfile).catch(() => {})
 
   useEffect(() => { localStorage.setItem('month', month) }, [month])
   useEffect(() => {
@@ -49,15 +56,21 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('theme', theme)
   }, [theme])
-  useEffect(() => { api.whoami().then(() => setAuthed(true)).catch(() => setAuthed(false)) }, [])
+  useEffect(() => {
+    document.documentElement.setAttribute('data-accent', accent)
+    localStorage.setItem('accent', accent)
+  }, [accent])
+  useEffect(() => {
+    api.whoami().then((p) => { setProfile(p); setAuthed(true) }).catch(() => setAuthed(false))
+  }, [])
 
   const setFont = (kind, name) => setFonts((f) => ({ ...f, [kind]: name }))
 
   if (authed === null) return <div className="app center muted" style={{ paddingTop: 80 }}>…</div>
-  if (!authed) return <Login onDone={() => setAuthed(true)} />
+  if (!authed) return <Login onDone={() => api.whoami().then((p) => { setProfile(p); setAuthed(true) })} />
 
   return (
-    <MonthContext.Provider value={{ month, setMonth, fonts, setFont, FONTS }}>
+    <MonthContext.Provider value={{ month, setMonth, fonts, setFont, FONTS, profile, refreshProfile, accent, setAccent, ACCENTS }}>
       <div className="app">
         <nav className="nav">
           <Link to="/terms" className="brand" title="what the words mean">khata</Link>
@@ -72,7 +85,11 @@ export default function App() {
                   onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
             {theme === 'dark' ? '☀' : '☾'}
           </button>
-          <button className="btn ghost small" onClick={() => api.logout().then(() => location.reload())}>out</button>
+          {profile && (
+            <Link to="/settings" title={`${profile.name} — settings`} className="row" style={{ textDecoration: 'none' }}>
+              <Avatar value={profile.avatar} size={26} />
+            </Link>
+          )}
         </nav>
         <Routes>
           <Route path="/" element={<AddExpense />} />

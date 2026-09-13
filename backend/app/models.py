@@ -57,6 +57,17 @@ class Transfer:
 
 
 @dataclass
+class User:
+    name: str
+    id: int | None = None
+    avatar: str | None = None
+    password_hash: str | None = None
+    is_admin: bool = False
+    must_change_password: bool = False
+    created_at: str | None = None
+
+
+@dataclass
 class CarryAdjustment:
     fund_id: int
     month: str

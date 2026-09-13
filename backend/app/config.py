@@ -18,7 +18,10 @@ class Settings(BaseSettings):
     app_password: str = "changeme"
     secret_key: str = "dev-insecure-change-me"
 
-    # Storage. One SQLite file; parent dir is created on connect.
+    # Storage. Each profile gets its own SQLite file under data/profiles/;
+    # the auth DB (users) lives at data/auth.db. `db_path` is the legacy
+    # single-user file, kept only for one-time migration into Chai's profile.
+    data_dir: Path = BASE_DIR / "data"
     db_path: Path = BASE_DIR / "data" / "khata.db"
 
     # Session cookie.

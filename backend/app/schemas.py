@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 # --- auth / meta ---
 class LoginRequest(BaseModel):
+    user_id: int
     password: str
 
 
@@ -14,6 +15,50 @@ class MessageResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     version: str
+
+
+# --- profiles / users ---
+class ProfileOut(BaseModel):
+    id: int
+    name: str
+    avatar: str | None = None
+
+
+class WhoAmI(BaseModel):
+    id: int
+    name: str
+    avatar: str | None = None
+    is_admin: bool
+    must_change_password: bool
+
+
+class UserOut(BaseModel):
+    id: int
+    name: str
+    avatar: str | None = None
+    is_admin: bool
+    must_change_password: bool
+    created_at: str | None = None
+
+
+class CreateUserIn(BaseModel):
+    name: str
+    password: str
+    avatar: str | None = None
+    is_admin: bool = False
+
+
+class PasswordChangeIn(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class ResetPasswordIn(BaseModel):
+    new_password: str
+
+
+class AvatarIn(BaseModel):
+    avatar: str | None = None
 
 
 # --- funds ---
